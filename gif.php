@@ -6,6 +6,7 @@
  * Created: 25th July 2015
  * Website: http://github.com/dtbaker/envato-live-sales-gif/
  * If you improve this script with new images or better code please contribute them back to the github repo :) thanks!
+ *
  */
 
 
@@ -24,12 +25,8 @@ $debug = false;
 define('_ENVATO_LSG_TEMPLATE','template_bg.png');
 define('_ENVATO_LSG_TEMPLATE_MASK','template_mask.png');
 define('_ENVATO_LSG_FONT',__DIR__.'/HelveticaNeue-Regular.ttf');
-$base_image_blank = 'template_blank.png';
-$font_file = __DIR__.'/Vera.ttf';
 $statement_cache = 'cache_statement.json'; // change this name or block it with .htaccess if you don't want people to see your recent sales.
-$timeout = 10; // how many seconds between sending the last image again.
-$last_sent = false;
-$statement_cache_timeout = 30; // seconds.
+$statement_cache_timeout = 120; // please don't change this to anything lower. be nice to servers!
 if(!file_exists($statement_cache)){
     touch($statement_cache);
 }
@@ -38,18 +35,16 @@ $current_statement = array();
 
 // now we start doing the fun stuff:
 
-// first build up a quick "Loading" gif frame and send that to the browser as quickly as possible.
-$image_data = build_an_image(array(
-    'text' => 'Loading',
+// first build up a quick "Loading" gif frame and send that to the browser as quickly as possible so it can render an empty image the correct size.
+$blank_image_data = build_an_image(array(
+    'text' => '',
     'icon' => false,
 ));
 
-if(!$debug){
-    header("Content-type: image/gif");
-    echo get_animated_gif_header($image_data); // send special "I'm an animating gif" header
-}
-$image_data_framed = add_frame_to_image_data($image_data);
-echo get_frame_from_image_data($image_data_framed,0); // show "Loading" really quicky
+header("Content-type: image/gif");
+echo get_animated_gif_header($blank_image_data); // send special "I'm an animating gif" header
+$image_data_framed = add_frame_to_image_data($blank_image_data);
+echo get_frame_from_image_data($image_data_framed,2); // show "Loading" really quicky
 flush_the_pipes();
 
 //sleep(4);
@@ -58,18 +53,90 @@ flush_the_pipes();
 // these take long as we might have to do an API call or three
 require_once 'class.envato-basic.php';
 
-animate_image_data(array(
-    'text' => 'Last purchased 5 minutes ago',
-    'icon' => 'icon_cart.png',
-));
+$first_sale = $last_sale = false;
+$sale_count = 0;
+$current_statement = @json_decode(file_get_contents($statement_cache),true);
+// when was the last time we got the statement?
+if(!$current_statement || filemtime($statement_cache) < (time() - $statement_cache_timeout)){
+    // grab the new statement from envato API
+    $current_statement = array();
+    $envato = new envato_api_basic();
+    $envato->set_personal_token($personal_token);
+    $data = $envato->api('v1/market/private/user/statement.json');
+    if(!empty($data['statement'])){
+        file_put_contents($statement_cache,json_encode($data['statement']));
+        touch($statement_cache);
+        $current_statement = $data['statement'];
+    }
+}
+foreach($current_statement as $item){
+    if(!empty($item['kind']) && $item['kind'] == 'sale' && $item['description'] == $file_name){
+        if(!$last_sale)$last_sale = strtotime($item['occured_at']);
+        $first_sale = strtotime($item['occured_at']);
+        $sale_count++;
+    }
+}
+if($last_sale){
+    echo animate_image_data(array(
+        'text' => 'Last purchased '.prettyDate($last_sale,' ago'),
+        'icon' => 'icon_cart.png',
+        'pause' => 200,
+    ));
+    flush_the_pipes();
+}
+// pause:
+$image_data_framed = add_frame_to_image_data($blank_image_data);
+echo get_frame_from_image_data($image_data_framed,50);
+flush_the_pipes();
+
+if($first_sale && $sale_count && $first_sale != $last_sale) {
+    echo animate_image_data(array(
+        'text' => $sale_count.' purchases in the last '.prettyDate($first_sale,''),
+        'icon' => 'icon_trending.png',
+        'pause' => 200,
+    ));
+    flush_the_pipes();
+}
+
+
+echo ';';// end gif animation. commence loop.
+
 
 function animate_image_data($options){
-    for($y = 50; $y > 0; $y-=1){
-        $options['offset_y'] = $y;
-        $image_data = build_an_image($options);
+    $result = '';
+    $frame_inc = 0.1;
+
+    $move_by = 50;
+    $move_pixels = 2;
+    $frame_delay = 2;
+    for($y = $move_by; $y > 0; $y-=$move_pixels){
+        $this_options = $options;
+        $this_options['offset_y'] = $y;
+        //$this_options['text'] .=  ' ('.$frame_delay.')';
+        $image_data = build_an_image($this_options);
         $image_data_framed = add_frame_to_image_data($image_data);
-        echo get_frame_from_image_data($image_data_framed,ceil(abs($y-50)/10));
+        $result .= get_frame_from_image_data($image_data_framed,floor($frame_delay));
+        $frame_delay = $frame_delay + $frame_inc;
     }
+    $this_options = $options;
+    $this_options['offset_y'] = 0;
+    //$this_options['text'] .=  ' ('.$frame_delay.')';
+    $image_data = build_an_image($this_options);
+    $image_data_framed = add_frame_to_image_data($image_data);
+    $result .= get_frame_from_image_data($image_data_framed,$options['pause']);
+
+    $move_by = 50;
+    $move_pixels = 2;
+    for($y = 0; $y > -$move_by; $y-=$move_pixels){
+        $this_options = $options;
+        $this_options['offset_y'] = $y;
+        //$this_options['text'] .=  ' ('.$frame_delay.')';
+        $image_data = build_an_image($this_options);
+        $image_data_framed = add_frame_to_image_data($image_data);
+        $result .= get_frame_from_image_data($image_data_framed,ceil($frame_delay));
+        $frame_delay = $frame_delay - $frame_inc;
+    }
+    return $result;
 }
 function add_frame_to_image_data($image_data,$offset_y=0){
     $bg = imagecreatefromstring($image_data);
@@ -234,33 +301,33 @@ function flush_the_pipes(){
 }
 
 // copied from stackoverflow somewhere.
-function prettyDate($time){
+function prettyDate($time,$suffix=' ago'){
     $now = time();
     $ago = $now - $time;
     if($ago < 60){
         $when = round($ago);
         $s = ($when == 1)?"second":"seconds";
-        return "$when $s ago";
+        return "$when $s".$suffix;
     }elseif($ago < 3600){
         $when = round($ago / 60);
         $m = ($when == 1)?"minute":"minutes";
-        return "$when $m ago";
+        return "$when $m".$suffix;
     }elseif($ago >= 3600 && $ago < 86400){
         $when = round($ago / 60 / 60);
         $h = ($when == 1)?"hour":"hours";
-        return "$when $h ago";
+        return "$when $h".$suffix;
     }elseif($ago >= 86400 && $ago < 2629743.83){
         $when = round($ago / 60 / 60 / 24);
         $d = ($when == 1)?"day":"days";
-        return "$when $d ago";
+        return "$when $d".$suffix;
     }elseif($ago >= 2629743.83 && $ago < 31556926){
         $when = round($ago / 60 / 60 / 24 / 30.4375);
         $m = ($when == 1)?"month":"months";
-        return "$when $m ago";
+        return "$when $m".$suffix;
     }else{
         $when = round($ago / 60 / 60 / 24 / 365);
         $y = ($when == 1)?"year":"years";
-        return "$when $y ago";
+        return "$when $y".$suffix;
     }
 }
 
@@ -278,41 +345,3 @@ function imagecopymerge_alpha($dst_im, $src_im, $dst_x, $dst_y, $src_x, $src_y, 
     // insert cut resource to destination image
     imagecopymerge($dst_im, $cut, $dst_x, $dst_y, 0, 0, $src_w, $src_h, $pct);
 }
-
-/*
-// send first frame:
-echo get_frame_from_image_data($contents, 1);
-echo get_frame_from_image_data($contents, 10);
-flush();
-ob_flush();
-
-
-$last_text = '';
-while(true){
-    $new_text = file_get_contents('text.txt');
-    if($new_text != $last_text){
-        $last_text = $new_text;
-
-
-        $im = imagecreatefrompng($base_image);
-        imagetruecolortopalette($im, true, 256);
-        $white = imagecolorallocate($im, 255, 255, 255);
-        imagecolortransparent($im, $white);
-        $font_color = imagecolorallocate($im, 102, 102, 102);
-        imagettftext($im, 15, 0, 80, 43, $font_color, $font_file, $new_text);
-        ob_start();
-        imagegif($im);
-        $contents = ob_get_clean();
-        imagedestroy($im);
-
-        echo get_frame_from_image_data($contents, 100);
-        flush();
-        ob_flush();
-
-        sleep(4);
-
-
-    }
-}
-*/
-
