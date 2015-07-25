@@ -25,10 +25,14 @@ $debug = false;
 define('_ENVATO_LSG_TEMPLATE','template_bg.png');
 define('_ENVATO_LSG_TEMPLATE_MASK','template_mask.png');
 define('_ENVATO_LSG_FONT',__DIR__.'/HelveticaNeue-Regular.ttf');
-$statement_cache = 'cache_statement.json'; // change this name or block it with .htaccess if you don't want people to see your recent sales.
+$statement_cache = 'hidden_cache_statement.json'; // change this name or block it with .htaccess if you don't want people to see your recent sales.
 $statement_cache_timeout = 120; // please don't change this to anything lower. be nice to servers!
 if(!file_exists($statement_cache)){
     touch($statement_cache);
+}
+if(!file_exists($statement_cache)){
+    echo "Unable to create ".$statement_cache.". Please ensure correct permissions.";
+    exit;
 }
 $current_statement = array();
 
