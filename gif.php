@@ -9,24 +9,18 @@
  *
  */
 
-
-// This is the item name we are looking for in the API statement result:
-$file_name = 'Ultimate Client Manager - CRM - Pro Edition';
-// This is our personal token generated from build.envato.com
-$personal_token = 'pemOG07IWPuvb8GCSum9lwvCVpkgHwj9';
-
-
+include('config.php');
 
 set_time_limit(0);
 ini_set('display_errors',true);
 ini_set('error_reporting',E_ALL);
 date_default_timezone_set('Australia/Melbourne');
-$debug = false;
 define('_ENVATO_LSG_TEMPLATE','template_bg.png');
 define('_ENVATO_LSG_TEMPLATE_MASK','template_mask.png');
 define('_ENVATO_LSG_FONT',__DIR__.'/HelveticaNeue-Regular.ttf');
-$statement_cache = 'hidden_cache_statement.json'; // change this name or block it with .htaccess if you don't want people to see your recent sales.
+$statement_cache = 'cache_statement.json'; // change this name or block it with .htaccess if you don't want people to see your recent sales.
 $statement_cache_timeout = 120; // please don't change this to anything lower. be nice to servers!
+$debug = isset($_REQUEST['debug']);
 if(!file_exists($statement_cache)){
     touch($statement_cache);
 }
@@ -45,10 +39,10 @@ $blank_image_data = build_an_image(array(
     'icon' => false,
 ));
 
-header("Content-type: image/gif");
-echo get_animated_gif_header($blank_image_data); // send special "I'm an animating gif" header
+if(!$debug)header("Content-type: image/gif");
+if(!$debug)echo get_animated_gif_header($blank_image_data); // send special "I'm an animating gif" header
 $image_data_framed = add_frame_to_image_data($blank_image_data);
-echo get_frame_from_image_data($image_data_framed,2); // show "Loading" really quicky
+if(!$debug)echo get_frame_from_image_data($image_data_framed,2); // show "Loading" really quicky
 flush_the_pipes();
 
 //sleep(4);
@@ -73,8 +67,15 @@ if(!$current_statement || filemtime($statement_cache) < (time() - $statement_cac
         $current_statement = $data['statement'];
     }
 }
+if($debug){
+//    print_r($current_statement); exit;
+}
 foreach($current_statement as $item){
     if(!empty($item['kind']) && $item['kind'] == 'sale' && $item['description'] == $file_name){
+        if($debug){
+            echo "Found a match.";
+            print_r($item);
+        }
         if(!$last_sale)$last_sale = strtotime($item['occured_at']);
         $first_sale = strtotime($item['occured_at']);
         $sale_count++;
@@ -102,6 +103,10 @@ if($first_sale && $sale_count && $first_sale != $last_sale) {
     flush_the_pipes();
 }
 
+// another pause:
+$image_data_framed = add_frame_to_image_data($blank_image_data);
+echo get_frame_from_image_data($image_data_framed,50);
+flush_the_pipes();
 
 echo ';';// end gif animation. commence loop.
 
