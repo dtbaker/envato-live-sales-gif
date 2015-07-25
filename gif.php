@@ -187,7 +187,7 @@ function build_an_image($options){
     $text_width = $text_box[2] - $text_box[0];
     $text_height = $text_box[3] - $text_box[1];
     $y = ($image_height / 2) - ($text_height / 2);
-    $y+=5;
+    $y+=6;
 
     if(!empty($options['offset_y'])){
         $y += $options['offset_y'];
