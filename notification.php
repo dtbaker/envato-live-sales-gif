@@ -1,195 +1,181 @@
 <?php
+
+@session_write_close();
+
+set_time_limit(0);
 ini_set('display_errors',true);
 ini_set('error_reporting',E_ALL);
+date_default_timezone_set('Australia/Brisbane');
 
-
+$debug = false;
 $base_image = 'template.png';
-$correct_gif_header = 'correct.gif';
-
-
-$im = imagecreatefrompng($base_image);
-imagetruecolortopalette($im, true, 256);
-$white = imagecolorallocate($im, 255, 255, 255);
-imagecolortransparent($im, $white);
-$font_color = imagecolorallocate($im, 102, 102, 102);
+$base_image_blank = 'template_blank.png';
 $font_file = __DIR__.'/Vera.ttf';
-$text = 'Testing...';
-imagettftext($im, 15, 0, 80, 43, $font_color, $font_file, $text);
-ob_start();
-imagegif($im);
-$contents = ob_get_clean();
-imagedestroy($im);
+$statement_cache = '_statement.json';
 
-function get_frame_from_image_data($contents, $delay){
-    $frame = '';
+$file_name = 'Ultimate Client Manager - CRM - Pro Edition'; // what to look for in the statement api result.
+$timeout = 10; // how many seconds between sending the last image again.
+$last_sent = false;
+$statement_cache_timeout = 30; // seconds.
+if(!file_exists($statement_cache)){
+    touch($statement_cache);
+}
+$current_statement = array();
+require_once 'class.envato-basic.php';
 
-    if(strpos($contents,'GIF89a') === 0){
-        $first_13 = substr($contents,0,13);
-        // find out teh size of our global colour table.
-        $packed = base_convert(ord($first_13[10]),10,2);
-        $global_color = substr($packed,1,3);
-        $global_color_number = (int)base_convert($global_color,2,10);
-        $global_color_count = pow(2, $global_color_number+1);
-        $global_color_bytes = 3 * $global_color_count;
-        // check if our gif has an extension already.
-        $image_start = 13 + $global_color_bytes;
-        if(bin2hex($contents[$image_start]) == '21'){
-            // our gif has an extension, find out how long it is.
-            $size = (int)base_convert(bin2hex($contents[$image_start + 2]),16,10);
-            $image_start = $image_start + $size + 4;
-        }
-        if(bin2hex($contents[$image_start]) == '2c') {
-            // found the image desc:10 bytes
-            $color_table = substr($contents, 13, $global_color_bytes);
-            $image_descriptor = substr($contents, $image_start, 9);
-            $new_image_descriptor = $image_descriptor . chr(base_convert('10000' . $global_color, 2, 10));
+// build up a list of stats that we want to display to the user
+$stats = array(
+    'last_purchased' => array(
+        'icon' => 'icon_cart.png',
+        'text' => 'Last purchased x ago',
+    ),
+);
 
-            $data = substr($contents, $image_start + 10);
-            $data = substr($data, 0, strlen($data) - 1);
 
-            $frame = '';
-            $frame .= hex2bin('21');
-            $frame .= hex2bin('f9');
-            $frame .= hex2bin('04');
-            $frame .= hex2bin('04');
-            $frame .= chr($delay); //delay?
-            $frame .= hex2bin('00');
-            $frame .= hex2bin('1f');
-            $frame .= hex2bin('00');
-            $frame .= $new_image_descriptor;
-            $frame .= $color_table;
-            $frame .= $data;
-        }
+$current_statement = @json_decode(file_get_contents($statement_cache),true);
+
+// base our generic stats off the cached statement then query the api for new data and then generate the updated stats.
+
+
+// when was the last time we got the statement?
+if(!$current_statement || filemtime($statement_cache) < (time() - $statement_cache_timeout)){
+    // grab the new statement from envato API
+    $current_statement = array();
+    $envato = new envato_api_basic();
+    $envato->set_personal_token('pemOG07IWPuvb8GCSum9lwvCVpkgHwj9');
+    $data = $envato->api('v1/market/private/user/statement.json');
+    if(!empty($data['statement'])){
+        file_put_contents($statement_cache,json_encode($data['statement']));
+        touch($statement_cache);
+        if($debug)echo "GETTING NEW STATEMENT\n\n";
+        $current_statement = $data['statement'];
     }
-    return $frame;
 }
 
-if(strpos($contents,'GIF89a') === 0){
-    // correct GIF
-    /*$hex_ary = array();
-    foreach (str_split($contents) as $chr) {
-        $hex_ary[] = sprintf("%02X", ord($chr));
-    }
-    print_r($hex_ary);*/
 
-    /*
-     * header: 6
-     * logical screen descriptor: 7 (width and height)
-     * global color table: (calculated based on logical screen desctirotp)
-     * graphics control extension: 8 bytes
-     * image descriptor: 10 bytes
-     *
-     */
+// Used to separate multipart
+$boundary = "envatosalesgraphic";
+// We start with the standard headers. PHP allows us this much
+if(!$debug){
+    header("Cache-Control: no-cache");
+    header("Cache-Control: private");
+    header("Pragma: no-cache");
+    header("Content-type: multipart/x-mixed-replace; boundary=$boundary");
+}
 
-    $first_13 = substr($contents,0,13);
-    // find out teh size of our global colour table.
-    $packed = base_convert(ord($first_13[10]),10,2);
-    $global_color = substr($packed,1,3);
-    $global_color_number = (int)base_convert($global_color,2,10);
-    $global_color_count = pow(2, $global_color_number+1);
-    $global_color_bytes = 3 * $global_color_count;;
-    $first_13[10] = chr(0); // reset packed field
-    $animated_extension = '';
-    $animated_extension .= hex2bin('21');
-    $animated_extension .= hex2bin('ff');
-    $animated_extension .= hex2bin('0b');
-    $animated_extension .= 'NETSCAPE2.0';
-    $animated_extension .= hex2bin('03');
-    $animated_extension .= hex2bin('01');
-    $animated_extension .= hex2bin('00');
-    $animated_extension .= hex2bin('00');
-    $animated_extension .= hex2bin('00');
-    $new_header = $first_13 . $animated_extension;
-
-    header("Content-type: image/gif");
-    echo $new_header;
-
-    echo get_frame_from_image_data($contents, 50);
-    flush();
-    ob_flush();
-
-    sleep(4);
-
-    $im = imagecreatefrompng($base_image);
+// send a blank image to start with:
+for ($y = 1; $y < 3; $y++) {
+    $im = imagecreatefrompng($base_image_blank);
     imagetruecolortopalette($im, true, 256);
     $white = imagecolorallocate($im, 255, 255, 255);
     imagecolortransparent($im, $white);
-    $font_color = imagecolorallocate($im, 102, 102, 102);
-    $font_file = __DIR__.'/Vera.ttf';
-    $text = 'Testing testing testing...';
-    imagettftext($im, 15, 0, 80, 43, $font_color, $font_file, $text);
     ob_start();
-    imagegif($im);
-    $contents = ob_get_clean();
+    imagejpeg($im, null, 100);
+    $last_image = ob_get_clean();
+    if(!$debug)echo $last_image;
     imagedestroy($im);
-
-    echo get_frame_from_image_data($contents, 5);
-    flush();
-    ob_flush();
-
+    echo "--$boundary\n";
+    // Per-image header, note the two new-lines
+    echo "Content-type: image/jpeg\n\n";
+    while (@ob_get_level()) @ob_end_flush();
+    @flush();
+    @ob_flush();
+    $last_sent = time();
+}
+function prettyDate($time){
+    $now = time();
+    $ago = $now - $time;
+    if($ago < 60){
+        $when = round($ago);
+        $s = ($when == 1)?"second":"seconds";
+        return "$when $s ago";
+    }elseif($ago < 3600){
+        $when = round($ago / 60);
+        $m = ($when == 1)?"minute":"minutes";
+        return "$when $m ago";
+    }elseif($ago >= 3600 && $ago < 86400){
+        $when = round($ago / 60 / 60);
+        $h = ($when == 1)?"hour":"hours";
+        return "$when $h ago";
+    }elseif($ago >= 86400 && $ago < 2629743.83){
+        $when = round($ago / 60 / 60 / 24);
+        $d = ($when == 1)?"day":"days";
+        return "$when $d ago";
+    }elseif($ago >= 2629743.83 && $ago < 31556926){
+        $when = round($ago / 60 / 60 / 24 / 30.4375);
+        $m = ($when == 1)?"month":"months";
+        return "$when $m ago";
+    }else{
+        $when = round($ago / 60 / 60 / 24 / 365);
+        $y = ($when == 1)?"year":"years";
+        return "$when $y ago";
+    }
 }
 
-exit;
-// we use this Gif Animation class: https://github.com/lunakid/AnimGif
+$displayed_sale = false;
+$last_sale = false;
+while(true) {
+    $current_statement = @json_decode(file_get_contents($statement_cache),true);
+    // when was the last time we got the statement?
+    if(!$current_statement || filemtime($statement_cache) < (time() - $statement_cache_timeout)){
+        // grab the new statement from envato API
+        $current_statement = array();
+        $envato = new envato_api_basic();
+        $envato->set_personal_token('pemOG07IWPuvb8GCSum9lwvCVpkgHwj9');
+        $data = $envato->api('v1/market/private/user/statement.json');
+        if(!empty($data['statement'])){
+            file_put_contents($statement_cache,json_encode($data['statement']));
+            touch($statement_cache);
+            if($debug)echo "GETTING NEW STATEMENT\n\n";
+            $current_statement = $data['statement'];
+        }
+    }
+    foreach($current_statement as $item){
+        if($debug){
+            echo "Checking if ".$item['description']." matches '".$file_name."'\n";
+        }
+        if(!empty($item['kind']) && $item['kind'] == 'sale' && $item['description'] == $file_name){
+            $last_sale = strtotime($item['occured_at']);
+            break;
+        }
+    }
+    if($last_sent < time() - $timeout){
+        // send last image again.
+        if(!$debug)echo $last_image;
+        echo "--$boundary\n";
+        // Per-image header, note the two new-lines
+        echo "Content-type: image/jpeg\n\n";
+        while (@ob_get_level()) @ob_end_flush();
+        @flush();
+        @ob_flush();
+        $last_sent = time();
+    }
+    if($last_sale && $last_sale != $displayed_sale){
+        $displayed_sale = $last_sale;
+        for ($y = 1; $y < 3; $y++) {
+            $im = imagecreatefrompng($base_image);
+            imagetruecolortopalette($im, true, 256);
+            $white = imagecolorallocate($im, 255, 255, 255);
+            imagecolortransparent($im, $white);
+            $font_color = imagecolorallocate($im, 102, 102, 102);
+            if($debug)echo "Last purchased ".prettyDate($last_sale)."\n\n";
+            imagettftext($im, 12, 0, 80, 43, $font_color, $font_file, "Last purchased ".prettyDate($last_sale));
+            ob_start();
+            imagejpeg($im, null, 100);
+            $last_image = ob_get_clean();
+            if(!$debug)echo $last_image;
+            imagedestroy($im);
 
-require_once 'AnimGif.php';
-
-
-$frames = array(
-    imagecreatefrompng("template.png"),
-    imagecreatefrompng("template2.png"),
-    imagecreatefrompng("template3.png"),
-);
-$durations = array(10);
-
-$anim = new GifCreator\AnimGif();
-$anim->create($frames, $durations, 0);
-
-
-header("Content-type: image/gif");
-echo $anim->get();
-
-// process:
-/**
- *  pass in1.gif through full_gif_to_animated_gif_header() and create 0.part
- *      gif should start with GIF89a
- *      get the first 13 characters of the GIF string
- *      replace the 10th character with chr(0)
- *      ANIMATED_GIF_EXTENSION = hex_to_binary("21 ff 0b") + "NETSCAPE2.0" + hex_to_binary("03 01 01 00 00")
- *      assert len(ANIMATED_GIF_EXTENSION) == 19
- *      return logical_description + ANIMATED_GIF_EXTENSION
- *
- * run create_frame_file() on each of the remaining gifs
- * run each gif through full_gif_to_frame()
- *      ensure gif starts with GIF89a
- *      # Global color table
-assert hex(ord(raw_gif[10])) == "0xf7"
-gct_len = 256
-gct_range = 13, 13 + (gct_len * 3)
-color_table = raw_gif[gct_range[0]:gct_range[1]]
-
-# Image descriptor
-image_descriptor_range = gct_range[1], gct_range[1] + 10
-image_descriptor = raw_gif[image_descriptor_range[0] : image_descriptor_range[1]]
-assert image_descriptor[0] == ","
-assert ord(image_descriptor[-1]) == 0        # Packed Fields
-packed_fields = chr(int("10000111", base=2)) # Local Color Table Flag        1 Bit
-# Interlace Flag                1 Bit
-# Sort Flag                     1 Bit
-# Reserved                      2 Bits
-# Size of Local Color Table     3 Bits
-
-new_image_descriptor = image_descriptor[:-1] + packed_fields
-
-# Image data
-data_range = image_descriptor_range[1], len(raw_gif) - 1
-data = raw_gif[data_range[0] : data_range[1]]
-assert raw_gif[data_range[1]] == ";" # file terminator
-
-# New frame data
-frame = hex_to_binary("21 f9 04 04") + chr(frame_interval) + hex_to_binary("00 1f 00")
-frame += new_image_descriptor
-frame += color_table
-frame += data
- *
- */
+            echo "--$boundary\n";
+            // Per-image header, note the two new-lines
+            echo "Content-type: image/jpeg\n\n";
+            while (@ob_get_level()) @ob_end_flush();
+            @flush();
+            @ob_flush();
+            $last_sent = time();
+        }
+    }
+    sleep(1);
+    if($debug)echo 'Loop \n';
+//    break;
+}
