@@ -20,6 +20,8 @@ define('_ENVATO_LSG_TEMPLATE_MASK','template_mask.png');
 define('_ENVATO_LSG_FONT',__DIR__.'/HelveticaNeue-Regular.ttf');
 $statement_cache = 'cache_statement.json'; // change this name or block it with .htaccess if you don't want people to see your recent sales.
 $statement_cache_timeout = 120; // please don't change this to anything lower. be nice to servers!
+$viewer_cache = 'cache_viewers.json'; // change this name or block it with .htaccess if you don't want people to see info
+$viewer_cache_timeout = 600; // how long to class someone as a visitor after they leave the page? default 10 minutes
 $debug = isset($_REQUEST['debug']);
 if(!file_exists($statement_cache)){
     touch($statement_cache);
@@ -28,12 +30,20 @@ if(!file_exists($statement_cache)){
     echo "Unable to create ".$statement_cache.". Please ensure correct permissions.";
     exit;
 }
+if(!file_exists($viewer_cache)){
+    touch($viewer_cache);
+}
+if(!file_exists($viewer_cache)){
+    echo "Unable to create ".$viewer_cache.". Please ensure correct permissions.";
+    exit;
+}
 $current_statement = array();
 
 
 // now we start doing the fun stuff:
 
 // first build up a quick "Loading" gif frame and send that to the browser as quickly as possible so it can render an empty image the correct size.
+global $blank_image_data;
 $blank_image_data = build_an_image(array(
     'text' => '',
     'icon' => false,
@@ -46,6 +56,30 @@ if(!$debug)echo get_frame_from_image_data($image_data_framed,2); // show "Loadin
 flush_the_pipes();
 
 //sleep(4);
+
+// adding a really quick and dodgy "currently viewing" count to the stats:
+$viewer_ip = $_SERVER['REMOTE_ADDR']; // todo - look for x_forward etc..
+$viewer_database = @json_decode(file_get_contents($viewer_cache),true);
+if(!$viewer_database)$viewer_database = array();
+$now = time();
+$viewer_database[$viewer_ip] = $now;
+foreach($viewer_database as $ip=>$time){
+    if($time < $now - $viewer_cache_timeout){
+        unset($viewer_database[$ip]);
+    }
+}
+file_put_contents($viewer_cache,json_encode($viewer_database));
+if(count($viewer_database) > 1){
+    // don't want to show "1 person viewing" that sounds lame.
+    echo animate_image_data(array(
+        'text' => count($viewer_database).' People Currently Viewing',
+        'icon' => 'icon_eye.png',
+        'pause' => 200,
+    ));
+    flush_the_pipes();
+    animation_pause();
+}
+
 
 // now we start doing some calculations and build up additional gif frames to send to the browser.
 // these take long as we might have to do an API call or three
@@ -89,10 +123,7 @@ if($last_sale){
     ));
     flush_the_pipes();
 }
-// pause:
-$image_data_framed = add_frame_to_image_data($blank_image_data);
-echo get_frame_from_image_data($image_data_framed,50);
-flush_the_pipes();
+animation_pause();
 
 if($first_sale && $sale_count && $first_sale != $last_sale) {
     echo animate_image_data(array(
@@ -103,14 +134,17 @@ if($first_sale && $sale_count && $first_sale != $last_sale) {
     flush_the_pipes();
 }
 
-// another pause:
-$image_data_framed = add_frame_to_image_data($blank_image_data);
-echo get_frame_from_image_data($image_data_framed,50);
-flush_the_pipes();
+animation_pause();
 
 echo ';';// end gif animation. commence loop.
 
 
+function animation_pause(){
+    global $blank_image_data;
+    $image_data_framed = add_frame_to_image_data($blank_image_data);
+    echo get_frame_from_image_data($image_data_framed,50);
+    flush_the_pipes();
+}
 function animate_image_data($options){
     $result = '';
     $frame_inc = 0.1;
