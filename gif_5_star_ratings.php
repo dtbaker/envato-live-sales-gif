@@ -14,7 +14,7 @@ define('_ENVATO_LSG_TEMPLATE_MASK','template_305_frame.png');
 
 include('config.php');
 
-$cache_gif_file = 'gif_5_star_ratings.cache.gif';
+$cache_gif_file = 'gif_5_star_ratings.cache.'._ENVATO_ITEM_ID.'.gif';
 if(file_exists($cache_gif_file) && filemtime($cache_gif_file) > time() - _GIF_CACHE_TIMEOUT && !isset($_REQUEST['refresh'])){
     header("Content-type: image/gif");
     readfile($cache_gif_file);

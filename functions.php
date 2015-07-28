@@ -454,3 +454,98 @@ function envato_get_item_ratings($item_id){
     }
     return $ratings;
 }
+function envato_get_item_reviews($item_id){
+
+    // now we start doing some calculations and build up additional gif frames to send to the browser.
+    // these take long as we might have to do an API call or three
+    require_once 'class.envato-basic.php';
+
+    $current_html = file_get_contents(_ENVATO_ITEM_CACHE_FILE);
+    // when was the last time we got the statement?
+    if(!$current_html || filemtime(_ENVATO_ITEM_CACHE_FILE) < (time() - _ENVATO_ITEM_CACHE_TIMEOUT)){
+        // grab the new statement from envato API
+        // create a lock file so we don't do this at the same time.
+        if(file_exists(_ENVATO_ITEM_CACHE_FILE.'.lock') && filemtime(_ENVATO_ITEM_CACHE_FILE.'.lock') < strtotime('-5 minutes') ){
+            // lock file failed. remove it and start over
+            @unlink(_ENVATO_ITEM_CACHE_FILE.'.lock');
+        }
+        if(!file_exists(_ENVATO_ITEM_CACHE_FILE.'.lock')) {
+            touch(_ENVATO_ITEM_CACHE_FILE . '.lock');
+            $current_html = '';
+            $envato = new envato_api_basic();
+            $current_html = preg_replace('#\s+#',' ',$envato->get_url('http://themeforest.net/item/x/'.$item_id));
+            file_put_contents(_ENVATO_ITEM_CACHE_FILE, $current_html);
+            @unlink(_ENVATO_ITEM_CACHE_FILE.'.lock');
+        }
+    }
+    $ratings = array();
+    // we are looking for this HTML
+    /* <span class="rating-breakdown__key">5 Star</span>
+            <div class="rating-breakdown__meter">
+              <div class="rating-breakdown__meter-bar">
+                <div class="rating-breakdown__meter-progress" style="width: 80%">
+                  80%
+                </div>
+              </div>
+            </div>
+            <span class="rating-breakdown__count">315</span> */
+    if(preg_match('#meta itemprop="ratingCount" content="(\d+)"#',$current_html,$matches)){
+        $ratings['total'] = $matches[1];
+    }
+    if(preg_match_all('#class="rating-breakdown__key">(\d) Star</span>.*class="rating-breakdown__count">(\d+)</span>#imsU',$current_html,$matches)){
+        foreach($matches[1] as $key=>$val){
+            $ratings[$val] = $matches[2][$key];
+        }
+    }
+    return $ratings;
+}
+
+ function get_reviews(){ // todo: $datefrom=false,$type=1,$item_id=false
+
+    if(!$this->logged_in)return array();
+
+    $reviews = array();
+
+    if(_ENVATO_DEBUG_MODE){
+        echo 'grabbing reviews...';
+    }
+    $page_number = 1;
+    while(true){
+        $data = $this->get_url( $this->main_marketplace . "/reviews?page=".$page_number);
+        if(!$data || strpos($data,'Page Not Found'))break;
+        $data = preg_replace('#\s+#',' ',$data);
+        if(preg_match_all('#id="review_\d+".*<div class="review__details"> (.*) on <a href="(/item/[^/]+/)reviews/(\d+)"[^>]+>([^<]+)</a>.*<a href="/ratings/(\d+)"[^>]+>([^<]+)</a>.*</div> </div> <div class="(review|page-controls)"#imsU',$data,$matches)){
+            foreach($matches[0] as $match_id => $match){
+
+                $this_review = array(
+                    'rating_id' => $matches[5][$match_id],
+                    'rating_url' => '/ratings/'.$matches[5][$match_id],
+                    'buyer' => strip_tags($matches[1][$match_id]),
+                    'stars' => '',
+                    'review' => '',
+                    'item_id' => $matches[3][$match_id],
+                    'item_name' => $matches[4][$match_id],
+                    'item_url' => $matches[2][$match_id].$matches[3][$match_id],
+                    'date' => $matches[6][$match_id],
+                    'date_estimate' => date('Y-m-d',strtotime('-'.str_replace(' ago','',$matches[6][$match_id]),time())),
+                );
+
+                if(preg_match_all('#alt="Star-on" class="rating-basic#',$match,$stars)){
+                    $this_review['stars'] = count($stars[0]);
+                }
+                if(preg_match('#<div class="review__comments"> <p> <strong>Extra comments from the buyer:</strong><br />(.*)</p>#imsU',$match,$comments)){
+                    $this_review['review'] = trim($comments[1]);
+                }
+
+                $reviews[] = $this_review;
+
+            }
+
+        }else{
+            echo 'no matches';
+        }
+        $page_number++;
+    }
+
+    return $reviews;
+}
