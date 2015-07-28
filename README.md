@@ -1,6 +1,8 @@
 # envato-live-sales-gif
-A live sales notification GIF you can place on item pages.
 
+More details on the forums: http://codecanyon.net/forums/thread/sales-notifications-for-item-pages/186647
+
+A live sales notification GIF you can place on Envato item pages.
 
 This probably won't work if you have nginx or some other sort of caching infront of apache.
 
