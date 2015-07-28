@@ -4,8 +4,10 @@
 function animation_pause(){
     global $blank_image_data;
     $image_data_framed = add_frame_to_image_data($blank_image_data);
-    echo get_frame_from_image_data($image_data_framed,50);
+    $data = get_frame_from_image_data($image_data_framed,50);
+    echo $data;
     flush_the_pipes();
+    return $data;
 }
 function animate_image_data($options){
     $result = '';
@@ -405,4 +407,50 @@ function envato_get_statement(){
         }
     }
     return $current_statement;
+}
+
+function envato_get_item_ratings($item_id){
+
+    // now we start doing some calculations and build up additional gif frames to send to the browser.
+    // these take long as we might have to do an API call or three
+    require_once 'class.envato-basic.php';
+
+    $current_html = file_get_contents(_ENVATO_ITEM_CACHE_FILE);
+    // when was the last time we got the statement?
+    if(!$current_html || filemtime(_ENVATO_ITEM_CACHE_FILE) < (time() - _ENVATO_ITEM_CACHE_TIMEOUT)){
+        // grab the new statement from envato API
+        // create a lock file so we don't do this at the same time.
+        if(file_exists(_ENVATO_ITEM_CACHE_FILE.'.lock') && filemtime(_ENVATO_ITEM_CACHE_FILE.'.lock') < strtotime('-5 minutes') ){
+            // lock file failed. remove it and start over
+            @unlink(_ENVATO_ITEM_CACHE_FILE.'.lock');
+        }
+        if(!file_exists(_ENVATO_ITEM_CACHE_FILE.'.lock')) {
+            touch(_ENVATO_ITEM_CACHE_FILE . '.lock');
+            $current_html = '';
+            $envato = new envato_api_basic();
+            $current_html = preg_replace('#\s+#',' ',$envato->get_url('http://themeforest.net/item/x/'.$item_id));
+            file_put_contents(_ENVATO_ITEM_CACHE_FILE, $current_html);
+            @unlink(_ENVATO_ITEM_CACHE_FILE.'.lock');
+        }
+    }
+    $ratings = array();
+    // we are looking for this HTML
+    /* <span class="rating-breakdown__key">5 Star</span>
+            <div class="rating-breakdown__meter">
+              <div class="rating-breakdown__meter-bar">
+                <div class="rating-breakdown__meter-progress" style="width: 80%">
+                  80%
+                </div>
+              </div>
+            </div>
+            <span class="rating-breakdown__count">315</span> */
+    if(preg_match('#meta itemprop="ratingCount" content="(\d+)"#',$current_html,$matches)){
+        $ratings['total'] = $matches[1];
+    }
+    if(preg_match_all('#class="rating-breakdown__key">(\d) Star</span>.*class="rating-breakdown__count">(\d+)</span>#imsU',$current_html,$matches)){
+        foreach($matches[1] as $key=>$val){
+            $ratings[$val] = $matches[2][$key];
+        }
+    }
+    return $ratings;
 }

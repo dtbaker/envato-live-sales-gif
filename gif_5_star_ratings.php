@@ -51,7 +51,17 @@ flush_the_pipes();
 
 
 
-
+$ratings = envato_get_item_ratings(_ENVATO_ITEM_ID);
+if($ratings && !empty($ratings[5])){
+    $animate_image =  animate_image_data(array(
+        'text' => $ratings[5].' five star ratings received',
+        'icon' => 'icon_star.png',
+        'pause' => 2000,
+        'type' => 'fade_in',
+    ));
+    $cache_gif_content .= $animate_image;
+    echo $animate_image;
+}
 
 flush_the_pipes();
 
