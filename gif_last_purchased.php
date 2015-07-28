@@ -14,7 +14,7 @@ define('_ENVATO_LSG_TEMPLATE_MASK','template_305_frame.png');
 
 include('config.php');
 
-$cache_gif_file = 'gif_recent_sales.cache.gif';
+$cache_gif_file = 'gif_last_purchased.cache.gif';
 if(file_exists($cache_gif_file) && filemtime($cache_gif_file) > time() - _GIF_CACHE_TIMEOUT && !isset($_REQUEST['refresh'])){
     header("Content-type: image/gif");
     readfile($cache_gif_file);
@@ -65,11 +65,10 @@ foreach($current_statement as $item){
         $sale_count++;
     }
 }
-
-if($first_sale && $sale_count && $first_sale != $last_sale) {
-    $animate_image =  animate_image_data(array(
-        'text' => $sale_count.' purchases in the last '.prettyDate($first_sale,''),
-        'icon' => 'icon_trending.png',
+if($last_sale){
+    $animate_image = animate_image_data(array(
+        'text' => 'Last purchased '.prettyDate($last_sale,' ago'),
+        'icon' => 'icon_cart.png',
         'pause' => 2000,
         'type' => 'fade_in',
     ));

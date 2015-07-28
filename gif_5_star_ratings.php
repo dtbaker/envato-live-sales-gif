@@ -14,7 +14,7 @@ define('_ENVATO_LSG_TEMPLATE_MASK','template_305_frame.png');
 
 include('config.php');
 
-$cache_gif_file = 'gif_recent_sales.cache.gif';
+$cache_gif_file = 'gif_5_star_ratings.cache.gif';
 if(file_exists($cache_gif_file) && filemtime($cache_gif_file) > time() - _GIF_CACHE_TIMEOUT && !isset($_REQUEST['refresh'])){
     header("Content-type: image/gif");
     readfile($cache_gif_file);
@@ -50,32 +50,9 @@ if(!_DTBAKER_DEBUG_MODE){
 flush_the_pipes();
 
 
-$first_sale = $last_sale = false;
-$sale_count = 0;
-$current_statement = envato_get_statement();
 
-foreach($current_statement as $item){
-    if(!empty($item['kind']) && $item['kind'] == 'sale' && $item['description'] == _ENVATO_ITEM_NAME){
-        if(_DTBAKER_DEBUG_MODE){
-            echo "Found a match.";
-            print_r($item);
-        }
-        if(!$last_sale)$last_sale = strtotime($item['occured_at']);
-        $first_sale = strtotime($item['occured_at']);
-        $sale_count++;
-    }
-}
 
-if($first_sale && $sale_count && $first_sale != $last_sale) {
-    $animate_image =  animate_image_data(array(
-        'text' => $sale_count.' purchases in the last '.prettyDate($first_sale,''),
-        'icon' => 'icon_trending.png',
-        'pause' => 2000,
-        'type' => 'fade_in',
-    ));
-    $cache_gif_content .= $animate_image;
-    echo $animate_image;
-}
+
 flush_the_pipes();
 
 echo ';';// end gif animation. commence loop.

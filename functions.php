@@ -51,7 +51,7 @@ function animate_image_data($options){
                 $this_options['opacity'] = $x;
                 $image_data = build_an_image($this_options);
                 $image_data_framed = add_frame_to_image_data($image_data);
-                $result .= get_frame_from_image_data($image_data_framed,100);
+                $result .= get_frame_from_image_data($image_data_framed,8);
             }
             $image_data = build_an_image($options);
             $image_data_framed = add_frame_to_image_data($image_data);
@@ -83,7 +83,6 @@ function build_an_image($options){
     imagetruecolortopalette($im, true, 256);
     $white = imagecolorallocate($im, 255, 255, 255);
     imagecolortransparent($im, $white);
-    $font_color = imagecolorallocate($im, 102, 102, 102);
 
     $image_width = imagesx($im);
     $image_height = imagesy($im);
@@ -103,25 +102,30 @@ function build_an_image($options){
         // if there is no logo position the text in the middle of the image (http://stackoverflow.com/a/14517450/457850)
         // Calculate coordinates of the text
         $x = ($image_width / 2) - ($text_width / 2);
+        $font_color = imagecolorallocate($im, 102, 102, 102);
         imagettftext($im, $font_size, 0, $x, $y, $font_color, _ENVATO_LSG_FONT, $options['text']);
     }else{
         // add our icon to the image.
         $icon = imagecreatefrompng($options['icon']);
-        $icon_y = 12;
+        $icon_width = imagesx($icon);
+        $icon_height = imagesy($icon);
+        $icon_y = ($image_height - $icon_height) / 2;
         if(!empty($options['offset_y'])) {
             $icon_y += $options['offset_y'];
         }
         // we have a logo, put the text near it on the left.
-        $x = 80;
+        $x = 60;
         // build up a temporary icon/text image so we can apply alpha to it if needed
         $logo_and_text = imagecreatetruecolor($image_width, $image_height);
+        imagealphablending($logo_and_text, false);
         imagesavealpha($logo_and_text, true);
         $trans_colour = imagecolorallocatealpha($logo_and_text, 0, 0, 0, 127);
         imagefill($logo_and_text, 0, 0, $trans_colour);
+        imagecolortransparent($logo_and_text, $trans_colour);
 
-        imagecopymerge_alpha($logo_and_text, $icon, 10, $icon_y, 0, 0, imagesx($icon), imagesy($icon), 100);
+        $font_color = imagecolorallocate($logo_and_text, 102, 102, 102);
         imagettftext($logo_and_text, $font_size, 0, $x, $y, $font_color, _ENVATO_LSG_FONT, $options['text']);
-
+        imagecopy($logo_and_text, $icon, 10, $icon_y, 0, 0, $icon_width, $icon_height);
         imagecopymerge_alpha($im, $logo_and_text, 0, 0, 0, 0, $image_width, $image_height, isset($options['opacity']) ? $options['opacity'] : 100);
     }
     ob_start();
@@ -186,6 +190,9 @@ function get_animated_gif_header($contents) {
  */
 function get_frame_from_image_data($contents, $delay){
     $frame = '';
+//    $delay_in_hex = str_pad(base_convert($delay, 10, 16), 4, '0', STR_PAD_LEFT);
+//    $hex_bits = str_split($delay_in_hex,2);
+//    $binary = chr($delay); echo "delay $delay is $delay_in_hex and should be ".bin2hex($binary); print_r($hex_bits);exit;
 
     if(strpos($contents,'GIF89a') === 0){
         $first_13 = substr($contents,0,13);
@@ -214,8 +221,12 @@ function get_frame_from_image_data($contents, $delay){
             $frame .= hex2bin('f9');
             $frame .= hex2bin('04');
             $frame .= hex2bin('04');
-            $frame .= chr($delay); //delay?
-            $frame .= hex2bin('00');
+//            $frame .= chr($delay); //delay?
+//            $frame .= hex2bin('00');
+            $delay_in_hex = str_pad(base_convert($delay, 10, 16), 4, '0', STR_PAD_LEFT);
+            $hex_bits = str_split($delay_in_hex,2);
+            $frame .= hex2bin($hex_bits[1]);
+            $frame .= hex2bin($hex_bits[0]);
             $frame .= hex2bin('1f');
             $frame .= hex2bin('00');
             $frame .= $new_image_descriptor;
@@ -277,6 +288,49 @@ function imagecopymerge_alpha($dst_im, $src_im, $dst_x, $dst_y, $src_x, $src_y, 
     // insert cut resource to destination image
     imagecopymerge($dst_im, $cut, $dst_x, $dst_y, 0, 0, $src_w, $src_h, $pct);
 }
+function imagecopymerge_alpha_old($dst_im, $src_im, $dst_x, $dst_y, $src_x, $src_y, $src_w, $src_h, $pct){
+    if(!isset($pct)){
+        return false;
+    }
+    $pct /= 100;
+    // Get image width and height
+    $w = imagesx( $src_im );
+    $h = imagesy( $src_im );
+    // Turn alpha blending off
+    imagealphablending( $src_im, false );
+    // Find the most opaque pixel in the image (the one with the smallest alpha value)
+    $minalpha = 127;
+    for( $x = 0; $x < $w; $x++ )
+        for( $y = 0; $y < $h; $y++ ){
+            $alpha = ( imagecolorat( $src_im, $x, $y ) >> 24 ) & 0xFF;
+            if( $alpha < $minalpha ){
+                $minalpha = $alpha;
+            }
+        }
+    //loop through image pixels and modify alpha for each
+    for( $x = 0; $x < $w; $x++ ){
+        for( $y = 0; $y < $h; $y++ ){
+            //get current alpha value (represents the TANSPARENCY!)
+            $colorxy = imagecolorat( $src_im, $x, $y );
+            $alpha = ( $colorxy >> 24 ) & 0xFF;
+            //calculate new alpha
+            if( $minalpha !== 127 ){
+                $alpha = 127 + 127 * $pct * ( $alpha - 127 ) / ( 127 - $minalpha );
+            } else {
+                $alpha += 127 * $pct;
+            }
+            //get the color index with new alpha
+            $alphacolorxy = imagecolorallocatealpha( $src_im, ( $colorxy >> 16 ) & 0xFF, ( $colorxy >> 8 ) & 0xFF, $colorxy & 0xFF, $alpha );
+            //set pixel with the new color + opacity
+            if( !imagesetpixel( $src_im, $x, $y, $alphacolorxy ) ){
+                return false;
+            }
+        }
+    }
+    // The image copy
+    imagecopy($dst_im, $src_im, $dst_x, $dst_y, $src_x, $src_y, $src_w, $src_h);
+}
+
 
 function filter_opacity( &$img, $opacity ) //params: image resource id, opacity in percentage (eg. 80)
 {

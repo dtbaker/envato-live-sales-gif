@@ -14,7 +14,7 @@ define('_ENVATO_LSG_TEMPLATE_MASK','template_305_frame.png');
 
 include('config.php');
 
-$cache_gif_file = 'gif_recent_sales.cache.gif';
+$cache_gif_file = 'gif_currently_viewing.cache.gif';
 if(file_exists($cache_gif_file) && filemtime($cache_gif_file) > time() - _GIF_CACHE_TIMEOUT && !isset($_REQUEST['refresh'])){
     header("Content-type: image/gif");
     readfile($cache_gif_file);
@@ -50,32 +50,31 @@ if(!_DTBAKER_DEBUG_MODE){
 flush_the_pipes();
 
 
-$first_sale = $last_sale = false;
-$sale_count = 0;
-$current_statement = envato_get_statement();
 
-foreach($current_statement as $item){
-    if(!empty($item['kind']) && $item['kind'] == 'sale' && $item['description'] == _ENVATO_ITEM_NAME){
-        if(_DTBAKER_DEBUG_MODE){
-            echo "Found a match.";
-            print_r($item);
-        }
-        if(!$last_sale)$last_sale = strtotime($item['occured_at']);
-        $first_sale = strtotime($item['occured_at']);
-        $sale_count++;
+// adding a really quick and dodgy "currently viewing" count to the stats:
+$viewer_ip = $_SERVER['REMOTE_ADDR']; // todo - look for x_forward etc..
+$viewer_database = @json_decode(file_get_contents(_VIEWER_CACHE_FILE),true);
+if(!$viewer_database)$viewer_database = array();
+$now = time();
+$viewer_database[$viewer_ip] = $now;
+foreach($viewer_database as $ip=>$time){
+    if($time < $now - _VIEWER_CACHE_TIMEOUT){
+        unset($viewer_database[$ip]);
     }
 }
+file_put_contents(_VIEWER_CACHE_FILE,json_encode($viewer_database));
+// don't want to show "1 person viewing" that sounds lame.
+$viewer_count = max(2,count($viewer_database));
+$animate_image =  animate_image_data(array(
+    'text' => $viewer_count.' people currently viewing',
+    'icon' => 'icon_eye.png',
+    'pause' => 2000,
+    'type' => 'fade_in',
+));
+$cache_gif_content .= $animate_image;
+echo $animate_image;
 
-if($first_sale && $sale_count && $first_sale != $last_sale) {
-    $animate_image =  animate_image_data(array(
-        'text' => $sale_count.' purchases in the last '.prettyDate($first_sale,''),
-        'icon' => 'icon_trending.png',
-        'pause' => 2000,
-        'type' => 'fade_in',
-    ));
-    $cache_gif_content .= $animate_image;
-    echo $animate_image;
-}
+
 flush_the_pipes();
 
 echo ';';// end gif animation. commence loop.
