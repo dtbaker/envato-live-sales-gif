@@ -49,21 +49,21 @@ if(!_DTBAKER_DEBUG_MODE){
 } // show "Loading" really quicky
 flush_the_pipes();
 
-
-
-$ratings = envato_get_item_ratings(_ENVATO_ITEM_ID);
-if($ratings && !empty($ratings[5])){
-    $animate_image =  animate_image_data(array(
-        'text' => $ratings[5].' five star ratings received',
-        'icon' => 'icon_star.png',
-        'pause' => 2000,
-        'type' => 'fade_in',
-    ));
-    $cache_gif_content .= $animate_image;
-    echo $animate_image;
+$item_details = envato_get_item_details(_ENVATO_ITEM_ID);
+if($item_details) {
+    $ratings = envato_get_item_ratings(_ENVATO_ITEM_ID);
+    if ($ratings && !empty($ratings[5])) {
+        $animate_image = animate_image_data(array(
+            'text' => $ratings[5] . ' five star ratings received',
+            'icon' => 'icon_star.png',
+            'pause' => 2000,
+            'type' => 'fade_in',
+        ));
+        $cache_gif_content .= $animate_image;
+        echo $animate_image;
+    }
+    flush_the_pipes();
 }
-
-flush_the_pipes();
 
 echo ';';// end gif animation. commence loop.
 $cache_gif_content .= ';';

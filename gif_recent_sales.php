@@ -52,31 +52,35 @@ flush_the_pipes();
 
 $first_sale = $last_sale = false;
 $sale_count = 0;
-$current_statement = envato_get_statement();
 
-foreach($current_statement as $item){
-    if(!empty($item['kind']) && $item['kind'] == 'sale' && $item['description'] == _ENVATO_ITEM_NAME){
-        if(_DTBAKER_DEBUG_MODE){
-            echo "Found a match.";
-            print_r($item);
+$item_details = envato_get_item_details(_ENVATO_ITEM_ID);
+if($item_details) {
+    $current_statement = envato_get_statement();
+
+    foreach ($current_statement as $item) {
+        if (!empty($item['kind']) && $item['kind'] == 'sale' && $item['description'] == $item_details['name']) {
+            if (_DTBAKER_DEBUG_MODE) {
+                echo "Found a match.";
+                print_r($item);
+            }
+            if (!$last_sale) $last_sale = strtotime($item['occured_at']);
+            $first_sale = strtotime($item['occured_at']);
+            $sale_count++;
         }
-        if(!$last_sale)$last_sale = strtotime($item['occured_at']);
-        $first_sale = strtotime($item['occured_at']);
-        $sale_count++;
     }
-}
 
-if($first_sale && $sale_count && $first_sale != $last_sale) {
-    $animate_image =  animate_image_data(array(
-        'text' => $sale_count.' purchases in the last '.prettyDate($first_sale,''),
-        'icon' => 'icon_trending.png',
-        'pause' => 2000,
-        'type' => 'fade_in',
-    ));
-    $cache_gif_content .= $animate_image;
-    echo $animate_image;
+    if ($first_sale && $sale_count && $first_sale != $last_sale) {
+        $animate_image = animate_image_data(array(
+            'text' => $sale_count . ' purchases in the last ' . prettyDate($first_sale, ''),
+            'icon' => 'icon_trending.png',
+            'pause' => 2000,
+            'type' => 'fade_in',
+        ));
+        $cache_gif_content .= $animate_image;
+        echo $animate_image;
+    }
+    flush_the_pipes();
 }
-flush_the_pipes();
 
 echo ';';// end gif animation. commence loop.
 $cache_gif_content .= ';';

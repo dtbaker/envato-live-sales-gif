@@ -12,7 +12,6 @@
 include('config.php');
 include('functions.php');
 
-
 $cache_gif_file = 'gif.cache.'._ENVATO_ITEM_ID.'.gif';
 if(file_exists($cache_gif_file) && filemtime($cache_gif_file) > time() - _GIF_CACHE_TIMEOUT && !isset($_REQUEST['refresh'])){
     header("Content-type: image/gif");
@@ -75,53 +74,56 @@ $cache_gif_content .= animation_pause();
 
 $first_sale = $last_sale = false;
 $sale_count = 0;
-$current_statement = envato_get_statement();
 
-foreach($current_statement as $item){
-    if(!empty($item['kind']) && $item['kind'] == 'sale' && $item['description'] == _ENVATO_ITEM_NAME){
-        if(_DTBAKER_DEBUG_MODE){
-            echo "Found a match.";
-            print_r($item);
+$item_details = envato_get_item_details(_ENVATO_ITEM_ID);
+if($item_details) {
+    $current_statement = envato_get_statement();
+
+    foreach ($current_statement as $item) {
+        if (!empty($item['kind']) && $item['kind'] == 'sale' && $item['description'] == $item_details['name']) {
+            if (_DTBAKER_DEBUG_MODE) {
+                echo "Found a match.";
+                print_r($item);
+            }
+            if (!$last_sale) $last_sale = strtotime($item['occured_at']);
+            $first_sale = strtotime($item['occured_at']);
+            $sale_count++;
         }
-        if(!$last_sale)$last_sale = strtotime($item['occured_at']);
-        $first_sale = strtotime($item['occured_at']);
-        $sale_count++;
     }
-}
-if($last_sale){
-    $animate_image = animate_image_data(array(
-        'text' => 'Last purchased '.prettyDate($last_sale,' ago'),
-        'icon' => 'icon_cart.png',
-        'pause' => 200,
-    ));
-    $cache_gif_content .= $animate_image;
-    echo $animate_image;
-    $cache_gif_content .= animation_pause();
-}
+    if ($last_sale) {
+        $animate_image = animate_image_data(array(
+            'text' => 'Last purchased ' . prettyDate($last_sale, ' ago'),
+            'icon' => 'icon_cart.png',
+            'pause' => 200,
+        ));
+        $cache_gif_content .= $animate_image;
+        echo $animate_image;
+        $cache_gif_content .= animation_pause();
+    }
 
 
-if($first_sale && $sale_count && $first_sale != $last_sale) {
-    $animate_image =  animate_image_data(array(
-        'text' => $sale_count.' purchases in the last '.prettyDate($first_sale,''),
-        'icon' => 'icon_trending.png',
-        'pause' => 200,
-    ));
-    $cache_gif_content .= $animate_image;
-    echo $animate_image;
-    $cache_gif_content .= animation_pause();
-}
+    if ($first_sale && $sale_count && $first_sale != $last_sale) {
+        $animate_image = animate_image_data(array(
+            'text' => $sale_count . ' purchases in the last ' . prettyDate($first_sale, ''),
+            'icon' => 'icon_trending.png',
+            'pause' => 200,
+        ));
+        $cache_gif_content .= $animate_image;
+        echo $animate_image;
+        $cache_gif_content .= animation_pause();
+    }
 
-
-$ratings = envato_get_item_ratings(_ENVATO_ITEM_ID);
-if($ratings && !empty($ratings[5])){
-    $animate_image =  animate_image_data(array(
-        'text' => $ratings[5].' five star ratings received',
-        'icon' => 'icon_star.png',
-        'pause' => 200,
-    ));
-    $cache_gif_content .= $animate_image;
-    echo $animate_image;
-    $cache_gif_content .= animation_pause();
+    $ratings = envato_get_item_ratings(_ENVATO_ITEM_ID);
+    if($ratings && !empty($ratings[5])){
+        $animate_image =  animate_image_data(array(
+            'text' => $ratings[5].' five star ratings received',
+            'icon' => 'icon_star.png',
+            'pause' => 200,
+        ));
+        $cache_gif_content .= $animate_image;
+        echo $animate_image;
+        $cache_gif_content .= animation_pause();
+    }
 }
 
 

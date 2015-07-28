@@ -378,6 +378,36 @@ function filter_opacity( &$img, $opacity ) //params: image resource id, opacity 
     return true;
 }
 
+function envato_get_item_details($item_id){
+    require_once 'class.envato-basic.php';
+
+    $item_id = (int)$item_id;
+    if(!$item_id)return array();
+
+    $current_item = @json_decode(file_get_contents(_ENVATO_API_ITEM_CACHE_FILE),true);
+    // when was the last time we got the statement?
+    if(!$current_item || filemtime(_ENVATO_API_ITEM_CACHE_FILE) < (time() - _ENVATO_API_ITEM_CACHE_TIMEOUT)){
+        // grab the new statement from envato API
+        // create a lock file so we don't do this at the same time.
+        if(file_exists(_ENVATO_API_ITEM_CACHE_FILE.'.lock') && filemtime(_ENVATO_API_ITEM_CACHE_FILE.'.lock') < strtotime('-5 minutes') ){
+            // lock file failed. remove it and start over
+            @unlink(_ENVATO_API_ITEM_CACHE_FILE.'.lock');
+        }
+        if(!file_exists(_ENVATO_API_ITEM_CACHE_FILE.'.lock')) {
+            touch(_ENVATO_API_ITEM_CACHE_FILE . '.lock');
+            $current_item = array();
+            $envato = new envato_api_basic();
+            $envato->set_personal_token(_ENVATO_PERSONAL_TOKEN);
+            $data = $envato->api('v2/market/catalog/item?id='.$item_id);
+            if (!empty($data) && isset($data['id']) && $data['id'] == $item_id && $data['author_username'] == _ENVATO_USERNAME) {
+                file_put_contents(_ENVATO_API_ITEM_CACHE_FILE, json_encode($data));
+                $current_item = $data;
+            }
+            @unlink(_ENVATO_API_ITEM_CACHE_FILE.'.lock');
+        }
+    }
+    return $current_item;
+}
 function envato_get_statement(){
 
     // now we start doing some calculations and build up additional gif frames to send to the browser.
