@@ -48,8 +48,8 @@ if(!_DTBAKER_DEBUG_MODE){
     $first_frame = get_frame_from_image_data($image_data_framed,2);
     $cache_gif_content .= $first_frame;
     echo $first_frame;
+    flush_the_pipes();
 } // show "Loading" really quicky
-flush_the_pipes();
 
 
 

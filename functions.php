@@ -200,7 +200,7 @@ function get_frame_from_image_data($contents, $delay){
         $first_13 = substr($contents,0,13);
         // find out teh size of our global colour table.
         $packed = base_convert(ord($first_13[10]),10,2);
-        $global_color = substr($packed,1,3);
+        $global_color = substr($packed,5,3);
         $global_color_number = (int)base_convert($global_color,2,10);
         $global_color_count = pow(2, $global_color_number+1);
         $global_color_bytes = 3 * $global_color_count;
@@ -536,7 +536,7 @@ function envato_get_item_reviews($item_id){
 
     $reviews = array();
 
-    if(_ENVATO_DEBUG_MODE){
+    if(_DTBAKER_DEBUG_MODE){
         echo 'grabbing reviews...';
     }
     $page_number = 1;
