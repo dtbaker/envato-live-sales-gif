@@ -18,7 +18,7 @@ $cache_gif_file = 'gif_currently_viewing.cache.'._ENVATO_ITEM_ID.'.gif';
 if(file_exists($cache_gif_file) && filemtime($cache_gif_file) > time() - _GIF_CACHE_TIMEOUT && !isset($_REQUEST['refresh'])){
     header("Content-type: image/gif");
     if(!@readfile($cache_gif_file)){
-        echo file_get_contents($cache_gif_content);
+        echo file_get_contents($cache_gif_file);
     }
     exit;
 }

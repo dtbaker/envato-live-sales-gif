@@ -115,6 +115,39 @@ class envato_api_basic{
         } else {
             curl_setopt( $this->ch, CURLOPT_POST, 0 );
         }
+        // safe mode redirection hack
+        if (ini_get('open_basedir') == '' && ini_get('safe_mode' == 'Off')) {
+
+        }else{
+            $mr = 6;
+            $newurl = curl_getinfo($this->ch, CURLINFO_EFFECTIVE_URL);
+            $rch = curl_copy_handle($this->ch);
+            curl_setopt($rch, CURLOPT_HEADER, true);
+            curl_setopt($rch, CURLOPT_NOBODY, true);
+            curl_setopt($rch, CURLOPT_FORBID_REUSE, false);
+            curl_setopt($rch, CURLOPT_RETURNTRANSFER, true);
+            do {
+                curl_setopt($rch, CURLOPT_URL, $newurl);
+                $header = curl_exec($rch);
+                if (curl_errno($rch)) {
+                    $code = 0;
+                } else {
+                    $code = curl_getinfo($rch, CURLINFO_HTTP_CODE);
+                    if ($code == 301 || $code == 302) {
+                        preg_match('/Location:(.*?)\n/', $header, $matches);
+                        $newurl = trim(array_pop($matches));
+                    } else {
+                        $code = 0;
+                    }
+                }
+            } while ($code && --$mr);
+            curl_close($rch);
+            if (!$mr) {
+                return false;
+            }
+            curl_setopt($this->ch, CURLOPT_URL, $newurl);
+
+        }
         return curl_exec( $this->ch );
     }
 
