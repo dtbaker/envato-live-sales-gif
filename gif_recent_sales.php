@@ -59,8 +59,9 @@ $item_details = envato_get_item_details(_ENVATO_ITEM_ID);
 if($item_details) {
     $current_statement = envato_get_statement();
 
+
     foreach ($current_statement as $item) {
-        if (!empty($item['kind']) && $item['kind'] == 'sale' && $item['description'] == $item_details['name']) {
+        if (!empty($item['kind']) && $item['kind'] == 'sale' && strpos($item['description'], $item_details['name']) !== false && strpos($item['description'], "included support") === false) {
             if (_DTBAKER_DEBUG_MODE) {
                 echo "Found a match.";
                 print_r($item);
